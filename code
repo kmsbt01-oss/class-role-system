@@ -1,0 +1,843 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>우리 반 1인 1역 지원 시스템</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .phase-indicator { transition: all 0.3s ease-in-out; }
+        .role-card { transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out; }
+        .role-card:hover { transform: translateY(-5px); box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05); }
+        .modal-backdrop {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background-color: rgba(0, 0, 0, 0.7); display: flex;
+            justify-content: center; align-items: center; z-index: 50;
+        }
+        .modal-content {
+            background-color: white; padding: 2rem; border-radius: 0.5rem;
+            max-width: 500px; width: 90%; text-align: center;
+        }
+        #teacherModeToggle:checked ~ .block { background-color: #4f46e5; }
+        #teacherModeToggle:checked ~ .dot { transform: translateX(24px); }
+        .hashtag {
+            background-color: #e0e7ff; color: #3730a3; padding: 0.25rem 0.75rem;
+            border-radius: 9999px; font-size: 0.875rem; font-weight: 500;
+        }
+        .ai-suggestion-btn {
+            background-color: #f0f9ff; color: #0284c7; border: 1px solid #7dd3fc;
+            padding: 0.25rem 0.75rem; border-radius: 9999px; font-size: 0.875rem;
+            margin-right: 0.5rem; margin-top: 0.5rem; cursor: pointer;
+        }
+        .ai-suggestion-btn:hover { background-color: #e0f2fe; }
+        #countdownBanner {
+            position: fixed; top: -100px; left: 50%; transform: translateX(-50%);
+            transition: top 0.5s ease-in-out;
+            z-index: 100;
+        }
+        .role-badge {
+            padding: 0.125rem 0.5rem; border-radius: 0.25rem; font-size: 0.75rem;
+            font-weight: 600; text-transform: uppercase;
+        }
+        .badge-default { background-color: #d1fae5; color: #065f46; }
+        .badge-proposed { background-color: #fee2e2; color: #991b1b; }
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-800">
+
+    <div id="app" class="container mx-auto p-4 md:p-8 max-w-7xl">
+
+        <!-- Countdown Banner -->
+        <div id="countdownBanner" class="w-full max-w-md bg-yellow-400 text-black p-4 rounded-b-lg shadow-lg text-center">
+            <p id="countdownText" class="font-bold text-lg"></p>
+        </div>
+
+        <!-- Header -->
+        <header class="bg-white rounded-lg shadow p-6 mb-8">
+            <div class="flex justify-between items-center flex-wrap gap-4">
+                <div>
+                    <h1 class="text-2xl md:text-3xl font-bold text-indigo-600">우리 반 1인 1역 지원 시스템 ✨</h1>
+                    <p class="text-gray-500 mt-1">민주적인 절차로 우리 반의 역할을 함께 만들어가요!</p>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <span id="currentUser" class="font-semibold text-gray-700 hidden"></span>
+                    <button id="logoutBtn" class="hidden bg-gray-200 text-gray-700 font-bold py-2 px-4 rounded-lg hover:bg-gray-300 transition text-sm">처음으로</button>
+                    <div class="flex items-center">
+                        <span class="text-sm font-medium mr-2">교사 모드</span>
+                        <label for="teacherModeToggle" class="flex items-center cursor-pointer">
+                            <div class="relative">
+                                <input type="checkbox" id="teacherModeToggle" class="sr-only">
+                                <div class="block bg-gray-600 w-14 h-8 rounded-full"></div>
+                                <div class="dot absolute left-1 top-1 bg-white w-6 h-6 rounded-full transition"></div>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Login Section -->
+        <div id="loginSection" class="text-center bg-white p-8 rounded-lg shadow">
+             <h2 class="text-xl font-bold mb-4">로그인</h2>
+             <p id="loginDescription" class="text-gray-600 mb-6">이름을 입력하여 시스템에 참여하세요.</p>
+             <input type="text" id="nameInput" placeholder="이름을 입력하세요" class="w-full max-w-sm p-3 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+             <input type="password" id="passwordInput" placeholder="비밀번호를 입력하세요" class="w-full max-w-sm p-3 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none hidden">
+             <button id="loginButton" class="mt-4 w-full max-w-sm bg-indigo-600 text-white font-bold py-3 px-6 rounded-lg hover:bg-indigo-700 transition duration-300">
+                 입장하기
+             </button>
+         </div>
+
+        <!-- Main Content (Hidden Initially) -->
+        <main id="mainContent" class="hidden">
+            <!-- Phase Indicator -->
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+                <div id="phase1Indicator" class="phase-indicator p-4 rounded-lg text-center border-2 border-gray-300"><span class="text-sm font-bold text-gray-500">1단계</span><p class="text-lg font-semibold">역할 제안/투표</p></div>
+                <div id="phase2Indicator" class="phase-indicator p-4 rounded-lg text-center border-2 border-gray-300"><span class="text-sm font-bold text-gray-500">2단계</span><p class="text-lg font-semibold">역할 지원</p></div>
+                <div id="phase3Indicator" class="phase-indicator p-4 rounded-lg text-center border-2 border-gray-300"><span class="text-sm font-bold text-gray-500">3단계</span><p class="text-lg font-semibold">경쟁률 확인</p></div>
+                <div id="phase4Indicator" class="phase-indicator p-4 rounded-lg text-center border-2 border-gray-300"><span class="text-sm font-bold text-gray-500">4단계</span><p class="text-lg font-semibold">역할 배정 완료</p></div>
+            </div>
+            
+            <div id="contentArea" class="bg-white rounded-lg shadow p-6 min-h-[500px]"></div>
+            <div id="teacherControls" class="hidden mt-8 bg-indigo-50 p-6 rounded-lg shadow"></div>
+        </main>
+    </div>
+
+    <!-- Modals -->
+    <div id="proposeRoleModal" class="modal-backdrop hidden"></div>
+    <div id="importRolesModal" class="modal-backdrop hidden"></div>
+    <div id="messageModal" class="modal-backdrop hidden"></div>
+    <div id="cheerModal" class="modal-backdrop hidden"></div>
+
+    <script type="module">
+        // Firebase SDK imports
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc, getDoc, onSnapshot, collection, addDoc, updateDoc, writeBatch, query, getDocs, deleteDoc, deleteField } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // --- 선생님의 Firebase 프로젝트 정보 ---
+        const firebaseConfig = {
+            apiKey: "AIzaSyB6Ai9RVvVHP1kkgbyofu_5Qem7H8HAkEc",
+            authDomain: "role-choosing.firebaseapp.com",
+            projectId: "role-choosing",
+            storageBucket: "role-choosing.firebasestorage.app",
+            messagingSenderId: "442128106946",
+            appId: "1:442128106946:web:c37b796fbffa8d651c025b"
+        };
+        
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const auth = getAuth(app);
+
+        // --- Global State & DOM Elements ---
+        let currentUser = null, isTeacher = false, currentPhase = 'proposal';
+        let unsubscribeAppState, unsubscribeRoles, unsubscribeStatusListener;
+        let localChoices = {}; // For seamless mode switching
+        const mainContent = document.getElementById('mainContent');
+        const teacherControls = document.getElementById('teacherControls');
+        const contentArea = document.getElementById('contentArea');
+        const nameInput = document.getElementById('nameInput');
+        const passwordInput = document.getElementById('passwordInput');
+        const logoutBtn = document.getElementById('logoutBtn');
+
+        // --- Firestore References (Simplified for deployment) ---
+        const appStateRef = doc(db, 'appState', 'state');
+        const rolesCollectionRef = collection(db, 'roles');
+        const applicationsCollectionRef = collection(db, 'applications');
+        const studentsCollectionRef = collection(db, 'students');
+
+        const defaultRoles = [
+            { name: '공기 청정 담당자', requiredPeople: 2, reason: '교실 공기청정기를 관리하며 쾌적한 환경을 유지합니다.', hashtag: '#책임감' },
+            { name: '분리수거 전문가', requiredPeople: 2, reason: '재활용품 분리수거를 주도하여 환경 보호에 기여합니다.', hashtag: '#봉사' },
+            { name: '칠판 관리 도우미', requiredPeople: 2, reason: '수업 전후로 칠판을 깨끗하게 정리합니다.', hashtag: '#성실' },
+            { name: '칭찬 스티커 관리자', requiredPeople: 1, reason: '친구들이 잘한 일을 칭찬하고 스티커를 부여하여 긍정적인 학급 분위기를 만듭니다.', hashtag: '#배려' },
+            { name: '학급 소식통', requiredPeople: 1, reason: '주요 학급 행사나 공지사항을 친구들에게 전달합니다.', hashtag: '#리더십' }
+        ];
+        const PHASES = ['proposal', 'application', 'competition', 'results'];
+        const TEACHER_PASSWORD = 'teacher123';
+
+        // --- Main App Logic ---
+        async function init() {
+            document.getElementById('loginButton').addEventListener('click', handleLogin);
+            document.getElementById('teacherModeToggle').addEventListener('change', toggleLoginMode);
+            logoutBtn.addEventListener('click', () => location.reload());
+            try {
+                await signInAnonymously(auth);
+            } catch (error) { 
+                console.error("Authentication failed:", error); 
+                showMessage("인증 실패: Firebase 콘솔에서 Authentication > 로그인 방법 > '익명'을 사용 설정해주세요."); 
+            }
+        }
+
+        function toggleLoginMode() {
+            const isToggleOn = document.getElementById('teacherModeToggle').checked;
+            nameInput.classList.toggle('hidden', isToggleOn);
+            passwordInput.classList.toggle('hidden', !isToggleOn);
+            document.getElementById('loginDescription').textContent = isToggleOn ? '교사 비밀번호를 입력하세요.' : '이름을 입력하여 시스템에 참여하세요.';
+        }
+        
+        async function handleLogin() {
+            const isToggleOn = document.getElementById('teacherModeToggle').checked;
+            if (isToggleOn) {
+                if (passwordInput.value === TEACHER_PASSWORD) {
+                    currentUser = 'Teacher';
+                    isTeacher = true;
+                } else {
+                    return showMessage("비밀번호가 올바르지 않습니다.");
+                }
+            } else {
+                const name = nameInput.value.trim();
+                if (!name) return showMessage("이름을 입력해주세요.");
+                currentUser = name;
+                isTeacher = false;
+                await setDoc(doc(studentsCollectionRef, name), { name: name }, { merge: true });
+            }
+            
+            document.getElementById('loginSection').classList.add('hidden');
+            mainContent.classList.remove('hidden');
+            document.getElementById('currentUser').textContent = `${currentUser}님`;
+            document.getElementById('currentUser').classList.remove('hidden');
+            logoutBtn.classList.remove('hidden');
+            startAppListeners();
+        }
+
+        function startAppListeners() {
+            if (unsubscribeAppState) unsubscribeAppState();
+            unsubscribeAppState = onSnapshot(appStateRef, async (doc) => {
+                if (doc.exists()) {
+                    const data = doc.data();
+                    currentPhase = data.phase;
+                    if (data.countdownEnd && data.countdownEnd > Date.now()) {
+                        showCountdown(data.countdownEnd);
+                    }
+                } else {
+                    await setDoc(appStateRef, { phase: 'proposal' });
+                    currentPhase = 'proposal';
+                    await populateDefaultRoles();
+                }
+                updatePhaseIndicator();
+                renderContent();
+            });
+        }
+
+        function updatePhaseIndicator() {
+            PHASES.forEach((phase, index) => {
+                const indicator = document.getElementById(`phase${index + 1}Indicator`);
+                const isActive = phase === currentPhase;
+                indicator.classList.toggle('bg-indigo-600', isActive);
+                indicator.classList.toggle('text-white', isActive);
+                indicator.classList.toggle('border-indigo-600', isActive);
+            });
+        }
+        
+        function renderContent() {
+            if (!currentUser) return;
+            renderTeacherDashboard();
+            switch (currentPhase) {
+                case 'proposal': renderProposalPhase(); break;
+                case 'application': renderApplicationPhase(); break;
+                case 'competition': renderCompetitionPhase(); break;
+                case 'results': renderResultsPhase(); break;
+            }
+        }
+        
+        // --- Phase 1: Proposal & Voting ---
+        async function renderProposalPhase() {
+            if (unsubscribeRoles) unsubscribeRoles();
+            unsubscribeRoles = onSnapshot(rolesCollectionRef, (snapshot) => {
+                const roles = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                let userVoteCount = roles.filter(r => r.votes?.includes(currentUser)).length;
+
+                if (userVoteCount >= 3 && !isTeacher) {
+                    contentArea.innerHTML = `<div class="flex flex-col items-center justify-center text-center p-8 h-full min-h-[400px]"><svg class="w-16 h-16 text-green-500 mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg><h2 class="text-2xl font-bold text-indigo-600 mb-4">투표 완료!</h2><p class="text-gray-600">선생님께서 다음 단계를 시작하면 화면이 자동으로 변경됩니다.</p></div>`;
+                    return;
+                }
+                
+                let teacherButtons = isTeacher ? `<button id="proposeRoleBtn" class="bg-green-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-green-600 transition">새 역할 제안</button><button id="importRolesBtn" class="bg-sky-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-sky-600 transition ml-2">목록 가져오기</button>` : `<button id="proposeRoleBtn" class="bg-green-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-green-600 transition">새 역할 제안하기</button>`;
+                contentArea.innerHTML = `<div class="flex justify-between items-center mb-6"><h2 class="text-xl font-bold">1단계: 역할 제안 및 투표</h2><div>${teacherButtons}</div></div><p class="text-gray-600 mb-4">우리 반에 필요하다고 생각하는 역할을 제안하고, 좋은 역할에 투표해주세요! (1인당 총 3표, 현재 <span class="font-bold">${userVoteCount}</span>표 사용)</p><div id="roleList" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>`;
+                
+                document.getElementById('proposeRoleBtn').onclick = showProposeRoleModal;
+                if(isTeacher) document.getElementById('importRolesBtn').onclick = showImportRolesModal;
+
+                const roleList = document.getElementById('roleList');
+                if (!roleList) return;
+                roles.sort((a, b) => (b.votes?.length || 0) - (a.votes?.length || 0));
+                roles.forEach(role => {
+                    const hasVoted = role.votes?.includes(currentUser);
+                    const isDefault = role.proposer === '기본 역할';
+                    const card = document.createElement('div');
+                    card.className = 'role-card bg-gray-50 p-5 rounded-lg border flex flex-col';
+                    card.innerHTML = `
+                        <div class="flex-grow">
+                            <div class="flex justify-between items-start mb-2">
+                                <h3 class="text-lg font-bold text-indigo-700">${role.name} <span class="text-sm font-normal text-gray-500">(${role.requiredPeople}명)</span></h3>
+                                <span class="role-badge ${isDefault ? 'badge-default' : 'badge-proposed'}">${isDefault ? '기본' : '제안'}</span>
+                            </div>
+                            <div class="text-left mb-2">${role.hashtag ? `<span class="hashtag">${role.hashtag}</span>` : ''}</div>
+                            <p class="text-gray-600 my-2">"${role.reason}"</p>
+                            <p class="text-sm text-gray-400 mb-4">제안자: ${role.proposer || '기본 역할'}</p>
+                        </div>
+                        <div class="mt-auto">
+                            <span class="text-xl font-bold text-yellow-500 block text-right mb-2">${role.votes?.length || 0}표</span>
+                            <button data-id="${role.id}" class="vote-btn w-full font-bold py-2 px-4 rounded-lg transition ${hasVoted ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-yellow-400 hover:bg-yellow-500 text-white'}">${hasVoted ? '투표 완료' : '투표하기'}</button>
+                            ${isTeacher ? `<button data-id="${role.id}" class="delete-role-btn w-full mt-2 bg-red-500 text-white text-sm py-1 px-2 rounded hover:bg-red-600">이 역할 삭제</button>` : ''}
+                        </div>`;
+                    roleList.appendChild(card);
+                });
+                document.querySelectorAll('.vote-btn').forEach(btn => btn.onclick = handleVote);
+                if (isTeacher) document.querySelectorAll('.delete-role-btn').forEach(btn => btn.onclick = handleDeleteRole);
+            });
+        }
+        
+        function showProposeRoleModal() {
+            const modal = document.getElementById('proposeRoleModal');
+            modal.innerHTML = `<div class="modal-content" style="text-align: left;"><h3 class="text-xl font-bold mb-4 text-center">새 역할 제안</h3><div class="flex items-center gap-2 mb-3"><input id="roleName" type="text" placeholder="역할 이름 (예: 화분 관리사)" class="w-full p-2 border rounded"><button id="aiDescBtn" class="bg-purple-500 text-white font-bold p-2 rounded-lg hover:bg-purple-600" title="✨ AI로 설명 만들기">✨</button></div><textarea id="roleReason" placeholder="역할이 필요한 이유" class="w-full p-2 border rounded mb-3 h-24"></textarea><input id="roleCount" type="number" min="1" placeholder="필요 인원" class="w-full p-2 border rounded mb-3"><div class="flex items-center gap-2 mb-2"><input id="roleHashtag" type="text" placeholder="#가치키워드" class="w-full p-2 border rounded"><button id="aiSuggestBtn" class="bg-cyan-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-cyan-600">AI 추천</button></div><div id="aiSuggestions" class="mb-4"></div><div class="flex justify-end gap-2"><button id="cancelPropose" class="bg-gray-300 text-gray-800 font-bold py-2 px-4 rounded hover:bg-gray-400">취소</button><button id="submitPropose" class="bg-green-500 text-white font-bold py-2 px-4 rounded hover:bg-green-600">제안하기</button></div></div>`;
+            modal.classList.remove('hidden');
+            document.getElementById('cancelPropose').onclick = () => modal.classList.add('hidden');
+            document.getElementById('submitPropose').onclick = handleProposeRole;
+            document.getElementById('aiSuggestBtn').onclick = getAiHashtagSuggestions;
+            document.getElementById('aiDescBtn').onclick = getAiDescription;
+        }
+
+        async function callGemini(prompt) {
+            const apiKey = ""; // 여기에 Gemini API 키를 입력하세요.
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
+            const payload = { contents: [{ parts: [{ text: prompt }] }] };
+            const response = await fetch(apiUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            if (!response.ok) throw new Error(`API Error: ${response.statusText}`);
+            const result = await response.json();
+            return result.candidates[0].content.parts[0].text;
+        }
+
+        async function getAiDescription() {
+            const roleName = document.getElementById('roleName').value.trim();
+            if (!roleName) return showMessage("역할 이름을 먼저 입력해주세요.");
+            const btn = document.getElementById('aiDescBtn');
+            btn.textContent = '...';
+            btn.disabled = true;
+
+            const prompt = `초등학생을 대상으로 하는 '${roleName}' 역할에 대한 긍정적이고 창의적인 역할 설명을 1~2문장으로 만들어줘.`;
+            try {
+                const description = await callGemini(prompt);
+                document.getElementById('roleReason').value = description;
+            } catch (error) {
+                console.error("AI description error:", error);
+                showMessage("AI 설명을 가져오는 데 실패했습니다.");
+            } finally {
+                btn.textContent = '✨';
+                btn.disabled = false;
+            }
+        }
+
+        async function getAiHashtagSuggestions() {
+            const reason = document.getElementById('roleReason').value.trim();
+            if (!reason) return showMessage("역할 이유를 먼저 입력해주세요.");
+            const btn = document.getElementById('aiSuggestBtn');
+            btn.textContent = '생각 중...';
+            btn.disabled = true;
+
+            const prompt = `다음 역할 설명에 가장 잘 어울리는 긍정적인 가치 키워드 3가지를 쉼표로 구분해서 추천해줘. 각 키워드는 '#'으로 시작해야 해. 예: #책임감, #성실, #배려\n\n설명: "${reason}"`;
+            try {
+                const text = await callGemini(prompt);
+                const suggestions = text.split(',').map(s => s.trim()).filter(s => s.startsWith('#'));
+                const suggestionsDiv = document.getElementById('aiSuggestions');
+                suggestionsDiv.innerHTML = suggestions.map(tag => `<button class="ai-suggestion-btn">${tag}</button>`).join('');
+                suggestionsDiv.querySelectorAll('.ai-suggestion-btn').forEach(btn => {
+                    btn.onclick = () => { document.getElementById('roleHashtag').value = btn.textContent; };
+                });
+            } catch (error) {
+                console.error("AI suggestion error:", error);
+                showMessage("AI 추천을 가져오는 데 실패했습니다.");
+            } finally {
+                btn.textContent = 'AI 추천';
+                btn.disabled = false;
+            }
+        }
+        
+        async function handleProposeRole() {
+            const name = document.getElementById('roleName').value.trim();
+            const requiredPeople = parseInt(document.getElementById('roleCount').value, 10);
+            const reason = document.getElementById('roleReason').value.trim();
+            let hashtag = document.getElementById('roleHashtag').value.trim();
+            if (!name || !requiredPeople || !reason || !hashtag) return showMessage("모든 항목을 입력해주세요.");
+            if (!hashtag.startsWith('#')) hashtag = '#' + hashtag;
+            await addDoc(rolesCollectionRef, { name, requiredPeople, reason, hashtag, proposer: currentUser, votes: [] });
+            document.getElementById('proposeRoleModal').classList.add('hidden');
+            showMessage("새로운 역할이 성공적으로 제안되었습니다!", "success");
+        }
+
+        async function handleVote(e) {
+            const roleId = e.target.dataset.id;
+            const rolesSnapshot = await getDocs(rolesCollectionRef);
+            let userVoteCount = rolesSnapshot.docs.filter(doc => doc.data().votes?.includes(currentUser)).length;
+            if (userVoteCount >= 3) return showMessage("이미 3개의 역할에 투표했습니다.");
+            
+            const roleRef = doc(rolesCollectionRef, roleId);
+            const roleDoc = await getDoc(roleRef);
+            if (roleDoc.exists()) {
+                const roleData = roleDoc.data();
+                if (roleData.votes.includes(currentUser)) return;
+                await updateDoc(roleRef, { votes: [...roleData.votes, currentUser] });
+                if (userVoteCount + 1 >= 3) {
+                    await setDoc(doc(studentsCollectionRef, currentUser), { status_proposal: 'completed' }, { merge: true });
+                }
+            }
+        }
+
+        async function handleDeleteRole(e) {
+            if (confirm("정말로 이 역할을 목록에서 삭제하시겠습니까? 학생들의 투표 내역도 함께 사라집니다.")) {
+                await deleteDoc(doc(rolesCollectionRef, e.target.dataset.id));
+                showMessage("역할이 삭제되었습니다.", "success");
+            }
+        }
+
+        function showImportRolesModal() {
+            const modal = document.getElementById('importRolesModal');
+            modal.innerHTML = `<div class="modal-content"><h3 class="text-xl font-bold mb-4">역할 목록 가져오기</h3><p class="text-sm text-gray-600 mb-2">엑셀이나 한글 문서에서 역할 목록을 복사하여 아래에 붙여넣으세요.</p><p class="text-xs text-gray-500 mb-4">형식: <span class="font-mono">역할이름, 필요인원, 역할이유, #해시태그</span> (한 줄에 한 역할씩)</p><textarea id="importData" class="w-full h-48 p-2 border rounded" placeholder="예시)\n학급문고 담당, 2, 책을 정리하고 친구들에게 대여해줘요., #성실"></textarea><div class="flex justify-end gap-2 mt-4"><button id="cancelImport" class="bg-gray-300 text-gray-800 font-bold py-2 px-4 rounded hover:bg-gray-400">취소</button><button id="submitImport" class="bg-sky-500 text-white font-bold py-2 px-4 rounded hover:bg-sky-600">가져오기</button></div></div>`;
+            modal.classList.remove('hidden');
+            document.getElementById('cancelImport').onclick = () => modal.classList.add('hidden');
+            document.getElementById('submitImport').onclick = handleImportRoles;
+        }
+
+        async function handleImportRoles() {
+            const text = document.getElementById('importData').value.trim();
+            const lines = text.split('\n').filter(line => line.trim() !== '');
+            if (lines.length === 0) return showMessage("가져올 데이터가 없습니다.");
+            
+            const batch = writeBatch(db);
+            let successCount = 0;
+            lines.forEach(line => {
+                const parts = line.split(',').map(p => p.trim());
+                if (parts.length === 4) {
+                    const [name, requiredPeople, reason, hashtag] = parts;
+                    const numPeople = parseInt(requiredPeople, 10);
+                    if (name && !isNaN(numPeople) && reason && hashtag.startsWith('#')) {
+                        const newRoleRef = doc(rolesCollectionRef);
+                        batch.set(newRoleRef, { name, requiredPeople: numPeople, reason, hashtag, proposer: 'Teacher', votes: [] });
+                        successCount++;
+                    }
+                }
+            });
+
+            if (successCount > 0) {
+                await batch.commit();
+                showMessage(`${successCount}개의 역할을 성공적으로 가져왔습니다.`, "success");
+            } else {
+                showMessage("형식에 맞는 역할 데이터를 찾을 수 없습니다.");
+            }
+            document.getElementById('importRolesModal').classList.add('hidden');
+        }
+
+        // --- Phase 2: Application ---
+        async function renderApplicationPhase() {
+            const [rolesSnapshot, studentsSnapshot] = await Promise.all([getDocs(rolesCollectionRef), getDocs(studentsCollectionRef)]);
+            const allRoles = rolesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            allRoles.sort((a, b) => (b.votes?.length || 0) - (a.votes?.length || 0));
+            
+            const totalStudents = studentsSnapshot.size || 27;
+            const topRoles = [];
+            let cumulativePeople = 0;
+            for (const role of allRoles) {
+                if (cumulativePeople >= totalStudents) break;
+                topRoles.push(role);
+                cumulativePeople += role.requiredPeople;
+            }
+
+            const availableHashtags = [...new Set(allRoles.map(r => r.hashtag).filter(Boolean))];
+            
+            contentArea.innerHTML = `
+                <div class="flex justify-between items-center mb-6"><h2 class="text-xl font-bold">2단계: 역할 지원</h2></div>
+                <p class="text-gray-600 mb-4">투표 결과 상위 역할들입니다. 총 ${cumulativePeople}명을 선발하여 우리 반 ${totalStudents}명 모두가 역할을 맡게 됩니다. 1지망부터 3지망까지 원하는 역할을 선택해주세요.</p>
+                <div id="applicationStatus" class="mb-4 p-4 bg-gray-50 rounded-lg"></div>
+                <div id="topRoleList" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
+                <div class="bg-indigo-50 p-4 rounded-lg mt-8">
+                    <label for="myHashtag" class="block font-bold mb-2 text-indigo-800">나의 가치 키워드 선택</label>
+                    <p class="text-sm text-gray-600 mb-2">역할 선택을 마친 후, 자신의 강점을 나타내는 키워드를 하나 선택해주세요. 역할 배정 시 참고됩니다.</p>
+                    <select id="myHashtag" class="w-full p-2 border rounded-lg">${availableHashtags.map(tag => `<option value="${tag}">${tag}</option>`).join('')}</select>
+                </div>
+                <button id="submitApplicationBtn" class="mt-6 w-full bg-blue-500 text-white font-bold py-3 px-4 rounded-lg hover:bg-blue-600 transition">지원서 제출하기</button>`;
+            
+            const topRoleList = document.getElementById('topRoleList');
+            topRoles.forEach(role => {
+                const card = document.createElement('div');
+                card.className = 'role-card bg-gray-50 p-5 rounded-lg border';
+                card.innerHTML = `<div class="flex justify-between items-start mb-2"><h3 class="text-lg font-bold text-indigo-700">${role.name} <span class="text-sm font-normal text-gray-500">(${role.requiredPeople}명)</span></h3>${role.hashtag ? `<span class="hashtag">${role.hashtag}</span>` : ''}</div><p class="text-gray-600 my-2">"${role.reason}"</p><div class="mt-4 grid grid-cols-3 gap-2"><button data-role-id="${role.id}" data-choice="1" class="choice-btn">1지망</button><button data-role-id="${role.id}" data-choice="2" class="choice-btn">2지망</button><button data-role-id="${role.id}" data-choice="3" class="choice-btn">3지망</button></div>`;
+                card.querySelectorAll('.choice-btn').forEach(el => { el.className = 'choice-btn bg-white border-2 border-gray-300 text-gray-700 font-semibold py-2 rounded-lg hover:bg-gray-200'; });
+                topRoleList.appendChild(card);
+            });
+            
+            document.querySelectorAll('.choice-btn').forEach(btn => btn.onclick = handleChoiceSelection);
+            document.getElementById('submitApplicationBtn').onclick = handleSubmitApplication;
+
+            const appDoc = await getDoc(doc(applicationsCollectionRef, currentUser));
+            if (appDoc.exists()) {
+                localChoices = appDoc.data().choices;
+                document.getElementById('myHashtag').value = appDoc.data().myHashtag;
+                document.getElementById('submitApplicationBtn').textContent = '제출 완료';
+                document.getElementById('submitApplicationBtn').disabled = true;
+            }
+            updateChoiceButtons(localChoices);
+            updateApplicationStatus(localChoices);
+        }
+
+        function handleChoiceSelection(e) {
+            const { roleId, choice } = e.target.dataset;
+            Object.keys(localChoices).forEach(key => { if (localChoices[key] === roleId) delete localChoices[key]; });
+            localChoices[choice] = roleId;
+            updateChoiceButtons(localChoices);
+            updateApplicationStatus(localChoices);
+        }
+        
+        async function handleSubmitApplication() {
+            const myHashtag = document.getElementById('myHashtag').value;
+            if (Object.keys(localChoices).length === 0) return showMessage("하나 이상의 역할에 지원해야 합니다.");
+            if (!myHashtag) return showMessage("나의 가치 키워드를 선택해주세요.");
+            
+            await setDoc(doc(applicationsCollectionRef, currentUser), { user: currentUser, choices: localChoices, myHashtag });
+            await setDoc(doc(studentsCollectionRef, currentUser), { status_application: 'completed' }, { merge: true });
+            showMessage("지원서가 성공적으로 제출되었습니다!", "success");
+            document.getElementById('submitApplicationBtn').textContent = '제출 완료';
+            document.getElementById('submitApplicationBtn').disabled = true;
+        }
+
+        function updateChoiceButtons(choices) {
+            document.querySelectorAll('.choice-btn').forEach(btn => {
+                btn.classList.remove('bg-indigo-500', 'text-white', 'border-indigo-500');
+                btn.classList.add('bg-white', 'border-gray-300', 'text-gray-700');
+            });
+            for (const choice in choices) {
+                const roleId = choices[choice];
+                const selectedBtn = document.querySelector(`.choice-btn[data-role-id="${roleId}"][data-choice="${choice}"]`);
+                if (selectedBtn) {
+                    selectedBtn.classList.add('bg-indigo-500', 'text-white', 'border-indigo-500');
+                    selectedBtn.classList.remove('bg-white', 'border-gray-300', 'text-gray-700');
+                }
+            }
+        }
+
+        async function updateApplicationStatus(choices) {
+            const statusDiv = document.getElementById('applicationStatus');
+            if (!statusDiv) return;
+            const rolesSnapshot = await getDocs(rolesCollectionRef);
+            const rolesMap = new Map(rolesSnapshot.docs.map(doc => [doc.id, doc.data().name]));
+            statusDiv.innerHTML = `<p class="font-semibold">나의 지원 현황:</p><div class="flex flex-wrap gap-x-4 mt-2">
+                <div>1지망: <span class="font-bold text-indigo-600">${choices['1'] ? rolesMap.get(choices['1']) : '미선택'}</span></div>
+                <div>2지망: <span class="font-bold text-indigo-600">${choices['2'] ? rolesMap.get(choices['2']) : '미선택'}</span></div>
+                <div>3지망: <span class="font-bold text-indigo-600">${choices['3'] ? rolesMap.get(choices['3']) : '미선택'}</span></div></div>`;
+        }
+
+        // --- Phase 3 & 4 ---
+        async function renderCompetitionPhase() {
+            contentArea.innerHTML = `<div class="flex justify-between items-center mb-6"><h2 class="text-xl font-bold">3단계: 경쟁률 확인</h2></div><p class="text-gray-600 mb-4">(익명) 1지망 지원자 기준 경쟁률입니다. 선생님께서 최종 배정을 실행하면 결과가 공개됩니다.</p><div id="competitionList" class="space-y-3"></div>`;
+            const [rolesSnapshot, appsSnapshot] = await Promise.all([getDocs(rolesCollectionRef), getDocs(applicationsCollectionRef)]);
+            const roles = rolesSnapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+            const applications = appsSnapshot.docs.map(d => d.data());
+            
+            const competition = {};
+            roles.forEach(r => { competition[r.id] = { name: r.name, required: r.requiredPeople, applicants: 0 }; });
+            applications.forEach(app => {
+                if (app.choices['1'] && competition[app.choices['1']]) {
+                    competition[app.choices['1']].applicants++;
+                }
+            });
+
+            const competitionList = document.getElementById('competitionList');
+            Object.values(competition).sort((a,b) => b.applicants - a.applicants).forEach(item => {
+                const ratio = item.required > 0 ? (item.applicants / item.required) : 0;
+                let colorClass = 'text-green-600';
+                if (ratio > 1) colorClass = 'text-red-600';
+                if (ratio === 1) colorClass = 'text-yellow-600';
+
+                const barWidth = Math.min(100, ratio * 100);
+                let barColor = 'bg-green-500';
+                if (ratio > 1) barColor = 'bg-red-500';
+                if (ratio === 1) barColor = 'bg-yellow-500';
+
+                const row = document.createElement('div');
+                row.className = 'p-4 bg-gray-50 rounded-lg';
+                row.innerHTML = `
+                    <div class="flex justify-between items-center font-bold">
+                        <span>${item.name}</span>
+                        <span class="${colorClass}">${item.applicants}명 지원 / ${item.required}명 모집</span>
+                    </div>
+                    <div class="w-full bg-gray-200 rounded-full h-2.5 mt-2">
+                        <div class="${barColor} h-2.5 rounded-full" style="width: ${barWidth}%"></div>
+                    </div>
+                `;
+                competitionList.appendChild(row);
+            });
+        }
+        
+        async function renderResultsPhase() {
+            contentArea.innerHTML = `<h2 class="text-xl font-bold mb-6">4단계: 역할 배정 결과</h2><div id="resultsList" class="space-y-4"></div>`;
+            const resultsList = document.getElementById('resultsList');
+            const applicationsSnapshot = await getDocs(applicationsCollectionRef);
+            if (applicationsSnapshot.empty) {
+                resultsList.innerHTML = '<p class="text-gray-500">아직 배정된 결과가 없습니다. 교사 모드에서 역할 배정을 실행해주세요.</p>';
+                return;
+            }
+            if (isTeacher) {
+                let html = '<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">';
+                applicationsSnapshot.forEach(docSnap => {
+                    const data = docSnap.data();
+                    html += `<div class="p-4 bg-gray-100 rounded-lg"><span class="font-bold text-lg">${data.user}</span>: <span class="text-indigo-600 font-semibold">${data.assignedRoleName || '미배정'}</span></div>`;
+                });
+                resultsList.innerHTML = html + '</div>';
+            } else {
+                const userResultDoc = await getDoc(doc(applicationsCollectionRef, currentUser));
+                if (userResultDoc.exists()) {
+                    const data = userResultDoc.data();
+                    const roleDoc = data.assignedRoleId ? await getDoc(doc(rolesCollectionRef, data.assignedRoleId)) : null;
+                    const roleHashtag = roleDoc?.exists() ? roleDoc.data().hashtag : '';
+
+                    resultsList.innerHTML = `
+                        <div class="text-center p-8 bg-indigo-50 rounded-lg">
+                            <p class="text-lg">${currentUser}님의 역할은...</p>
+                            <p class="text-4xl font-bold text-indigo-600 mt-4">${data.assignedRoleName || '아직 배정되지 않았습니다'}</p>
+                            ${data.assignedRoleName ? `<button id="aiCheerBtn" data-role="${data.assignedRoleName}" data-hashtag="${roleHashtag}" class="mt-6 bg-pink-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-pink-600 transition">✨ AI 응원 메시지 받기</button>` : ''}
+                        </div>`;
+                    if(data.assignedRoleName) document.getElementById('aiCheerBtn').onclick = getAiCheerMessage;
+                } else {
+                    resultsList.innerHTML = `<p class="text-center text-gray-600">역할을 지원하지 않았거나, 아직 결과가 집계되지 않았습니다.</p>`;
+                }
+            }
+        }
+
+        async function getAiCheerMessage(e) {
+            const { role, hashtag } = e.target.dataset;
+            const btn = e.target;
+            btn.textContent = '생성 중...';
+            btn.disabled = true;
+
+            const prompt = `초등학생이 '${role}' 역할을 맡았어. 이 역할의 가치 키워드는 '${hashtag}'이야. 이 학생을 위한 짧고 긍정적인 응원 메시지를 한 문장으로 만들어줘.`;
+            try {
+                const message = await callGemini(prompt);
+                showCheerModal(message);
+            } catch (error) {
+                console.error("AI cheer error:", error);
+                showMessage("응원 메시지를 가져오는 데 실패했습니다.");
+            } finally {
+                btn.textContent = '✨ AI 응원 메시지 받기';
+                btn.disabled = false;
+            }
+        }
+
+        function showCheerModal(message) {
+            const modal = document.getElementById('cheerModal');
+            modal.innerHTML = `<div class="modal-content"><h2 class="text-2xl font-bold text-pink-500 mb-4">✨ AI의 응원 편지 ✨</h2><p class="text-lg">${message}</p><button id="closeCheer" class="mt-6 bg-gray-300 text-gray-800 font-bold py-2 px-4 rounded hover:bg-gray-400">닫기</button></div>`;
+            modal.classList.remove('hidden');
+            document.getElementById('closeCheer').onclick = () => modal.classList.add('hidden');
+        }
+
+        // --- Teacher Controls & Assignment ---
+        function renderTeacherDashboard() {
+            if (!isTeacher) { teacherControls.classList.add('hidden'); if(unsubscribeStatusListener) unsubscribeStatusListener(); return; }
+            teacherControls.classList.remove('hidden');
+            teacherControls.innerHTML = `<div class="grid grid-cols-1 lg:grid-cols-2 gap-8"><div><h3 class="text-xl font-bold text-indigo-800 mb-4">관리자 패널</h3><div id="admin-buttons" class="grid grid-cols-2 gap-4"></div></div><div><h3 id="status-title" class="text-xl font-bold text-indigo-800 mb-4">학생 진행 현황</h3><div id="student-status-container" class="bg-white p-4 rounded-lg max-h-64 overflow-y-auto"></div></div></div>`;
+            
+            const adminButtons = document.getElementById('admin-buttons');
+            const currentIndex = PHASES.indexOf(currentPhase);
+            adminButtons.innerHTML = `
+                <button id="prevPhaseBtn" class="bg-gray-500 text-white font-bold py-2 px-3 rounded-lg hover:bg-gray-600 transition">이전 단계</button>
+                <button id="nextPhaseBtn" class="bg-blue-500 text-white font-bold py-2 px-3 rounded-lg hover:bg-blue-600 transition">다음 단계</button>
+                <button id="countdownBtn" class="bg-yellow-500 text-white font-bold py-2 px-3 rounded-lg hover:bg-yellow-600 transition col-span-2">10초 마감 예고</button>
+                <button id="runAssignmentBtn" class="bg-red-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-red-700 transition col-span-2">최종 역할 배정 실행</button>
+                <button id="resetAppBtn" class="bg-gray-700 text-white font-bold py-3 px-4 rounded-lg hover:bg-gray-800 transition col-span-2">새 학기 초기화</button>`;
+            
+            const prevBtn = document.getElementById('prevPhaseBtn'), nextBtn = document.getElementById('nextPhaseBtn');
+            const assignBtn = document.getElementById('runAssignmentBtn'), countdownBtn = document.getElementById('countdownBtn');
+
+            prevBtn.onclick = () => changePhase(PHASES[currentIndex - 1], true);
+            nextBtn.onclick = () => changePhase(PHASES[currentIndex + 1], true);
+            assignBtn.onclick = runAssignmentAlgorithm;
+            countdownBtn.onclick = startCountdown;
+            document.getElementById('resetAppBtn').onclick = resetApplication;
+
+            prevBtn.disabled = currentIndex === 0;
+            nextBtn.disabled = currentIndex === PHASES.length - 1;
+            assignBtn.style.display = currentPhase === 'competition' ? 'block' : 'none';
+            countdownBtn.style.display = (currentPhase === 'proposal' || currentPhase === 'application') ? 'block' : 'none';
+            
+            listenForStudentStatusUpdates();
+        }
+
+        async function listenForStudentStatusUpdates() {
+            if (unsubscribeStatusListener) unsubscribeStatusListener();
+            const statusContainer = document.getElementById('student-status-container');
+            if (!isTeacher || !statusContainer) return;
+            
+            statusContainer.addEventListener('click', (e) => {
+                if (e.target.closest('.reset-student-btn')) {
+                    const studentName = e.target.closest('.reset-student-btn').dataset.student;
+                    handleResetStudentStatus(studentName);
+                }
+            });
+
+            unsubscribeStatusListener = onSnapshot(query(studentsCollectionRef), (snapshot) => {
+                let html = '';
+                const students = snapshot.docs.map(d => d.data());
+                document.getElementById('status-title').textContent = `학생 진행 현황 (${currentPhase} 단계)`;
+                students.forEach(s => {
+                    let statusText = '진행 중';
+                    let statusColor = 'text-gray-500';
+                    if (currentPhase === 'proposal' && s.status_proposal === 'completed') {
+                        statusText = '투표 완료'; statusColor = 'text-green-600';
+                    } else if (currentPhase === 'application' && s.status_application === 'completed') {
+                        statusText = '지원 완료'; statusColor = 'text-green-600';
+                    }
+                    html += `<div class="flex justify-between items-center py-2 border-b last:border-b-0">
+                                <span>${s.name}</span>
+                                <div class="flex items-center">
+                                    <span class="font-semibold ${statusColor} mr-2">${statusText}</span>
+                                    <button class="reset-student-btn text-gray-400 hover:text-gray-600" title="${s.name} 학생의 현재 단계 진행상황 초기화" data-student="${s.name}">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h5M20 20v-5h-5" /><path stroke-linecap="round" stroke-linejoin="round" d="M4 9a9 9 0 0114.65-4.65l1.35 1.35M20 15a9 9 0 01-14.65 4.65l-1.35-1.35" /></svg>
+                                    </button>
+                                </div>
+                             </div>`;
+                });
+                statusContainer.innerHTML = html || '<p class="text-gray-500">참여한 학생이 없습니다.</p>';
+            });
+        }
+        
+        async function handleResetStudentStatus(studentName) {
+            if (!confirm(`${studentName} 학생의 ${currentPhase} 단계 진행 상황을 초기화하시겠습니까?`)) return;
+
+            if (currentPhase === 'proposal') {
+                const rolesSnapshot = await getDocs(rolesCollectionRef);
+                const batch = writeBatch(db);
+                rolesSnapshot.forEach(doc => {
+                    const votes = doc.data().votes || [];
+                    if (votes.includes(studentName)) {
+                        const updatedVotes = votes.filter(voter => voter !== studentName);
+                        batch.update(doc.ref, { votes: updatedVotes });
+                    }
+                });
+                batch.update(doc(studentsCollectionRef, studentName), { status_proposal: deleteField() });
+                await batch.commit();
+            } else if (currentPhase === 'application') {
+                await deleteDoc(doc(applicationsCollectionRef, studentName));
+                await updateDoc(doc(studentsCollectionRef, studentName), { status_application: deleteField() });
+            }
+            showMessage(`${studentName} 학생의 데이터가 초기화되었습니다.`, 'success');
+        }
+
+        async function startCountdown() {
+            const countdownEnd = Date.now() + 10000;
+            await updateDoc(appStateRef, { countdownEnd });
+        }
+
+        function showCountdown(endTime) {
+            const banner = document.getElementById('countdownBanner');
+            const text = document.getElementById('countdownText');
+            banner.style.top = '1rem';
+            const interval = setInterval(() => {
+                const remaining = Math.round((endTime - Date.now()) / 1000);
+                if (remaining <= 0) {
+                    clearInterval(interval);
+                    banner.style.top = '-100px';
+                } else {
+                    text.textContent = `마감 ${remaining}초 전! 서둘러주세요!`;
+                }
+            }, 1000);
+        }
+
+        async function runAssignmentAlgorithm() {
+            if (!confirm("자동 역할 배정을 실행하시겠습니까? 기존 배정 결과가 있다면 덮어쓰게 됩니다.")) return;
+            const [rolesSnapshot, appsSnapshot] = await Promise.all([getDocs(rolesCollectionRef), getDocs(applicationsCollectionRef)]);
+            const rolesMap = new Map(rolesSnapshot.docs.map(d => [d.id, { id: d.id, ...d.data(), applicants: [] }]));
+            let students = appsSnapshot.docs.map(d => ({ id: d.id, ...d.data(), assignedRole: null }));
+            
+            [1, 2, 3].forEach(choiceNum => {
+                let unassignedStudents = students.filter(s => !s.assignedRole);
+                let roleApplicants = new Map(rolesSnapshot.docs.map(d => [d.id, { id: d.id, ...d.data(), applicants: [] }]));
+                
+                unassignedStudents.forEach(s => {
+                    const choiceId = s.choices[String(choiceNum)];
+                    if (choiceId && roleApplicants.has(choiceId)) roleApplicants.get(choiceId).applicants.push({ student: s, choice: choiceNum });
+                });
+
+                for (const role of roleApplicants.values()) {
+                     const assignedToThisRole = students.filter(s => s.assignedRole === role.id).length;
+                     const spots = role.requiredPeople - assignedToThisRole;
+                     if (spots <= 0 || role.applicants.length === 0) continue;
+                     
+                     role.applicants.sort((a, b) => {
+                        const aMatch = a.student.myHashtag === role.hashtag ? 1 : 0;
+                        const bMatch = b.student.myHashtag === role.hashtag ? 1 : 0;
+                        if (aMatch !== bMatch) return bMatch - aMatch;
+                        return Math.random() - 0.5;
+                     });
+
+                     let assignedCount = 0;
+                     role.applicants.forEach(app => {
+                         if (assignedCount < spots) {
+                            const studentToAssign = students.find(s => s.id === app.student.id);
+                            if (!studentToAssign.assignedRole) {
+                                studentToAssign.assignedRole = role.id;
+                                assignedCount++;
+                            }
+                         }
+                     });
+                }
+            });
+
+            const batch = writeBatch(db);
+            const finalRolesMap = new Map(rolesSnapshot.docs.map(d => [d.id, d.data().name]));
+            students.forEach(s => {
+                const appRef = doc(applicationsCollectionRef, s.id);
+                batch.update(appRef, { assignedRoleId: s.assignedRole, assignedRoleName: s.assignedRole ? finalRolesMap.get(s.assignedRole) : "미배정" });
+            });
+            await batch.commit();
+            showMessage("자동 역할 배정이 완료되었습니다.", "success");
+            await changePhase('results');
+        }
+
+        async function resetApplication() {
+            if (!confirm("새 학기를 위해 모든 역할, 지원, 학생 데이터를 초기화하시겠습니까? 이 작업은 되돌릴 수 없습니다.")) return;
+            const [roles, apps, stud] = await Promise.all([getDocs(rolesCollectionRef), getDocs(applicationsCollectionRef), getDocs(studentsCollectionRef)]);
+            const batch = writeBatch(db);
+            roles.forEach(doc => batch.delete(doc.ref));
+            apps.forEach(doc => batch.delete(doc.ref));
+            stud.forEach(doc => batch.delete(doc.ref));
+            await batch.commit();
+            await setDoc(appStateRef, { phase: 'proposal' });
+            await populateDefaultRoles();
+            showMessage("시스템이 새 학기로 초기화되었습니다.", "success");
+        }
+        
+        async function changePhase(newPhase, showMsg = false) { 
+            if(!newPhase) return;
+            await setDoc(appStateRef, { phase: newPhase }); 
+            if(showMsg) showMessage(`단계가 변경되었습니다.`, "success");
+        }
+        
+        function showMessage(message, type = 'info') {
+            const modal = document.getElementById('messageModal');
+            const bgColor = type === 'success' ? 'bg-green-100 border-green-500 text-green-700' : 'bg-yellow-100 border-yellow-500 text-yellow-700';
+            modal.innerHTML = `<div class="modal-content"><p class="p-4 border-l-4 ${bgColor}">${message}</p></div>`;
+            modal.classList.remove('hidden');
+            setTimeout(() => modal.classList.add('hidden'), 2500);
+        }
+
+        async function populateDefaultRoles() {
+            const rolesSnapshot = await getDocs(rolesCollectionRef);
+            if (rolesSnapshot.empty) {
+                const batch = writeBatch(db);
+                defaultRoles.forEach(role => {
+                    const newRoleRef = doc(rolesCollectionRef);
+                    batch.set(newRoleRef, { ...role, votes: [], proposer: '기본 역할' });
+                });
+                await batch.commit();
+            }
+        }
+
+        // --- Init ---
+        init();
+    </script>
+</body>
+</html>
